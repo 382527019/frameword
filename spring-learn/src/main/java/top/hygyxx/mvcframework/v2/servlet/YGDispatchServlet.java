@@ -4,6 +4,7 @@ import top.hygyxx.mvcframework.annotation.YGController;
 import top.hygyxx.mvcframework.annotation.YGService;
 
 import javax.servlet.ServletConfig;
+import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -111,7 +112,8 @@ public class YGDispatchServlet extends HttpServlet {
     private void doScanner(String scanPackage) {
         /*scanPackage = xx.xx.xxx 要.替换/ => 成/xx/xx/xxx的URL*/
         /*2.1通过包路径拿到 =>URL(/xx/xx资源路径) 加载File文件夹*/
-        URL url = ClassLoader.getSystemResource("/" + scanPackage.replaceAll("\\.", "/"));
+        URL url = this.getClass().getClassLoader().getResource("/" + scanPackage.replaceAll("\\.", "/"));
+        if (url == null) return;
         File classPath = new File(url.getFile());
         for (File file : classPath.listFiles()) {
             if (file.isDirectory()) {
@@ -129,7 +131,7 @@ public class YGDispatchServlet extends HttpServlet {
 
     private void doLoadConfig(String initParameter) {
         /*1.1拿application.properties文件 =>得文件流*/
-        InputStream ips = ClassLoader.getSystemResourceAsStream(initParameter);
+        InputStream ips = this.getClass().getClassLoader().getResourceAsStream(initParameter);
         try {
             /*1.2把文件流加载成properties文件*/
             properties.load(ips);
