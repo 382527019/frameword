@@ -1,10 +1,11 @@
 package top.hygyxx.mvcframework.v2.servlet;
 
+import top.hygyxx.mvcframework.annotation.YGAutowired;
+import top.hygyxx.mvcframework.annotation.YGReqestMapping;
 import top.hygyxx.mvcframework.annotation.YGController;
 import top.hygyxx.mvcframework.annotation.YGService;
 
 import javax.servlet.ServletConfig;
-import javax.servlet.ServletContext;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
@@ -12,10 +13,11 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.util.*;
-
-import static jdk.nashorn.internal.objects.NativeString.toLowerCase;
 
 /**
  * 1.继承HttpServlet重写 doGet、doPost、init方法
@@ -31,19 +33,39 @@ public class YGDispatchServlet extends HttpServlet {
     /*IoC容器 ，Bean默认类名首字母小写，IoC(key=Bean Name，vaule=实例对象)*/
     private Map<String, Object> IoC = new HashMap<>();
 
+    /*handlerMapping*/
+    private Map<String, Method> handlerMapping = new HashMap<>();
+
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        super.doPost(req, resp);
+        this.doPost(req, resp);
     }
 
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         /*6.委派url 根据url去找到对应Method并通过response返回*/
-        doDispatch(req, resp);
+        try {
+            doDispatch(req, resp);
+        }catch (Exception e){
+            e.printStackTrace();
+            resp.getWriter().write("500 Exception,Detail:"+Arrays.toString(e.getStackTrace()));
+        }
     }
 
-    private void doDispatch(HttpServletRequest req, HttpServletResponse resp) {
+    private void doDispatch(HttpServletRequest req, HttpServletResponse resp) throws IOException, InvocationTargetException, IllegalAccessException {
+        String url = req.getRequestURI();
+        String contextPath = req.getContextPath();
+        url = url.replaceAll(contextPath, "").replaceAll("/+", "/");
+        if (!this.handlerMapping.containsKey(url)){
+            resp.getWriter().write("404 not found!");
+            return;
+        }
+        Map<String, String[]> parameterMap = req.getParameterMap();
+        Method method = this.handlerMapping.get(url);
+        /*临时*/
+        String beanName = toFirstCase(method.getDeclaringClass().getSimpleName());
+        method.invoke(IoC.get(beanName), new Object[]{req,resp,parameterMap.get("name")[0]});
     }
 
 
@@ -59,13 +81,54 @@ public class YGDispatchServlet extends HttpServlet {
         doAutowired();
         /*5.初始化HandlerMapping*/ //===MVC
         doInitHandlerMapping();
-        System.out.println("Framework");
+        System.out.println("Framework init ok");
     }
 
     private void doInitHandlerMapping() {
+        if (IoC.isEmpty()) return;
+        for (Map.Entry<String, Object> entry : IoC.entrySet()) {
+            Class<?> aClass = entry.getValue().getClass();
+            /*5.Controller注解*/
+            if (!aClass.isAnnotationPresent(YGController.class)) continue;
+            /*base url*/
+            String baseUrl = "";
+            if (aClass.isAnnotationPresent(YGReqestMapping.class)){
+                YGReqestMapping baseMapping = aClass.getAnnotation(YGReqestMapping.class);
+                baseUrl = baseMapping.value();
+            }
+            /*方法上的url*/
+            for (Method method : aClass.getMethods()) {
+                /*5.1mapping*/
+                if (!method.isAnnotationPresent(YGReqestMapping.class)) continue;
+                YGReqestMapping mapping = method.getAnnotation(YGReqestMapping.class);
+                /*5.2正则替换//+ 替换/ */
+                String url = (("/" + baseUrl + "/" + mapping.value()).replaceAll("/+", "/"));
+                handlerMapping.put(url, method);
+                System.out.println("Mapped:"+url+","+method);
+            }
+        }
     }
 
     private void doAutowired() {
+        if (IoC.isEmpty()) return;
+        for (Map.Entry<String, Object> entry : IoC.entrySet()) {
+            for (Field field : entry.getValue().getClass().getDeclaredFields()) {
+                /*4.1寻址依赖关系*/
+                if (!field.isAnnotationPresent(YGAutowired.class)) continue;
+                YGAutowired autowired = field.getAnnotation(YGAutowired.class);
+                String beanName = autowired.value().trim();
+                if ("".equals(beanName)) {
+                    beanName = field.getType().getSimpleName();
+                }
+                /*4.2强行访问*/
+                field.setAccessible(true);
+                try {
+                    field.set(entry.getValue(), IoC.get(beanName));
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
     private void doInstance() {
@@ -76,7 +139,7 @@ public class YGDispatchServlet extends HttpServlet {
                 Class<?> aClass = Class.forName(className);
                 /*3.2只有标注特定注解的才控制反转*/
                 if (aClass.isAnnotationPresent(YGController.class)) {
-                    String beanName = toFirstCase(aClass.getName());
+                    String beanName = toFirstCase(aClass.getSimpleName());
                     Object instance = aClass.newInstance();
                     IoC.put(beanName, instance);
                 } else if (aClass.isAnnotationPresent(YGService.class)) {
@@ -84,17 +147,18 @@ public class YGDispatchServlet extends HttpServlet {
                     String beanName = aClass.getAnnotation(YGService.class).value();
                     /*beanName.value是空就取默认*/
                     if ("".equals(beanName.trim())) {
-                        beanName = toFirstCase(aClass.getName());
+                        beanName = toFirstCase(aClass.getSimpleName());
                     }
                     /*3.3.2 默认的类名首字母小写*/
                     Object instance = aClass.newInstance();
                     IoC.put(beanName, instance);
                     /*3.3.3接口 => 一个实现默认注入，多个实现抛异常*/
+                    /*接口和实现是单例，用一个引用地址*/
                     for (Class<?> i : aClass.getInterfaces()) {
-                        if (IoC.containsKey(i.getName())) {
+                        if (IoC.containsKey(i.getSimpleName())) {
                             throw new Exception("The" + i.getName() + "is exists.");
                         }
-                        IoC.put(i.getName(), instance);
+                        IoC.put(i.getSimpleName(), instance);
                     }
                 } else continue;
             }
@@ -121,7 +185,7 @@ public class YGDispatchServlet extends HttpServlet {
                 doScanner(scanPackage + "." + file.getName());
             } else {
                 /*2.2.2 排除.class之外的文件*/
-                if (file.getName().endsWith(".class")) continue;
+                if (!file.getName().endsWith(".class")) continue;
                 /*2.2.3 拿到类全名(package.className)加载进缓存 ,类可以用Class.forName(包名.类名)加载*/
                 String className = (scanPackage + "." + file.getName().replace(".class", ""));
                 classNames.add(className);

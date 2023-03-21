@@ -1,4 +1,4 @@
-package top.hygyxx.demo;
+package top.hygyxx.mvcframework.annotation;
 
 import java.lang.annotation.*;
 
