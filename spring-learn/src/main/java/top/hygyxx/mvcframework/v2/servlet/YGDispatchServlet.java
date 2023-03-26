@@ -1,9 +1,6 @@
 package top.hygyxx.mvcframework.v2.servlet;
 
-import top.hygyxx.mvcframework.annotation.YGAutowired;
-import top.hygyxx.mvcframework.annotation.YGReqestMapping;
-import top.hygyxx.mvcframework.annotation.YGController;
-import top.hygyxx.mvcframework.annotation.YGService;
+import top.hygyxx.mvcframework.annotation.*;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
@@ -13,6 +10,7 @@ import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -63,9 +61,34 @@ public class YGDispatchServlet extends HttpServlet {
         }
         Map<String, String[]> parameterMap = req.getParameterMap();
         Method method = this.handlerMapping.get(url);
-        /*临时*/
+        //url 参数
+        Class<?>[] parameterTypes = method.getParameterTypes();
+        Object[] paramValue = new Object[parameterTypes.length];
+
+        for (int i = 0; i < parameterTypes.length; i++) {
+            Class<?> parameterType = parameterTypes[i];
+            if (parameterType==HttpServletRequest.class) {
+                paramValue[i]=req;
+            }else if (parameterType==HttpServletResponse.class){
+                paramValue[i] = resp;
+            }else if (parameterType==String.class){
+                Annotation[][] pa = method.getParameterAnnotations();
+                for (int j = i; j < i+1 ; j++) {
+                    for (int k = 0; k < pa[j].length; k++) {
+                        if (pa[j][k] instanceof GYRequestParam){
+                            String paramName = ((GYRequestParam) pa[j][k]).value();
+                            String value = Arrays.toString(parameterMap.get(paramName))
+                                    .replaceAll("\\[|\\]", "")
+                                    .replaceAll("\\s+", ",");
+                            paramValue[i] = value;
+                        }
+                    }
+                }
+            }
+        }
+
         String beanName = toFirstCase(method.getDeclaringClass().getSimpleName());
-        method.invoke(IoC.get(beanName), new Object[]{req,resp,parameterMap.get("name")[0]});
+        method.invoke(IoC.get(beanName),paramValue );
     }
 
 

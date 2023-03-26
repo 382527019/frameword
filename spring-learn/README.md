@@ -1,7 +1,8 @@
 # spring实现思路
 
-## 1.配置
-* 1.1 配置web.xml
+---
+## 一、YGDispatchServlet.class
+### 1.1.配置
     ~~~
     <display-name>Yungui Web Application</display-name>
         <!--servlet配置-->
@@ -18,19 +19,21 @@
             <url-pattern>/*</url-pattern>
         </servlet-mapping>
     ~~~
-* 1.2 配置init-param
-* 1.3 配置url-pattern
-* 1.4 配置Annotation
-## 2.初始化
-### 2.1 调用init()
-### 2.2 IoC容器初始化
-### 2.3 扫描相关类 
-### 2.4 创建实例并保存进IoC
-### 2.5 DI操作
-### 2.6 初始化HandlerMapping
-## 3.运行
-### 3.1 调用doPost()/doGet()
-### 3.2 匹配HandlerMapping
-### 3.3 反射调用method.invoker()
-### 3.4 response.getWrite().writ()
+* 1.1.1 配置web.xml
+* 1.1.2 配置init-param
+* 1.1.3 配置url-pattern
+* 1.1.4 配置Annotation
+### 1.2.初始化
+*  1.2.1 调用init()
+*  1.2.2 IoC容器初始化
+*  1.2.3 扫描相关类 
+*  1.2.4 创建实例并保存进IoC
+*  1.2.5 DI操作
+*  1.2.6 初始化HandlerMapping
+### 1.3.运行
+* 1.3.1 调用doPost()/doGet()
+* 1.3.2 匹配HandlerMapping
+* 1.3.3 反射调用method.invoker()
+* 1.3.4 response.getWrite().writ()
 返回结果输出浏览器
+---

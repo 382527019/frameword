@@ -1,6 +1,7 @@
 package top.hygyxx.demo.mvc.action;
 
 import top.hygyxx.demo.mvc.service.IDemoService;
+import top.hygyxx.mvcframework.annotation.GYRequestParam;
 import top.hygyxx.mvcframework.annotation.YGAutowired;
 import top.hygyxx.mvcframework.annotation.YGController;
 import top.hygyxx.mvcframework.annotation.YGReqestMapping;
@@ -14,7 +15,9 @@ public class TestController {
     private IDemoService demoService;
 
     @YGReqestMapping("/test")
-    public void test( HttpServletRequest req, HttpServletResponse resp,String name) {
+    public void test( HttpServletRequest req, HttpServletResponse resp,
+                      @GYRequestParam("name") String name,
+                      @GYRequestParam("type") String type) {
         String test = demoService.test(name);
         try {
             resp.getWriter().write(test);
