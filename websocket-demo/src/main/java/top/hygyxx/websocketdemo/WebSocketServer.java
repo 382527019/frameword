@@ -32,6 +32,7 @@ public class WebSocketServer {
         sessions.remove(session);
     }
 
+    //接收消息
     @OnMessage
     public void onMessage(String message, Session session) {
         LOGGER.info("WebSocket message received: " + message);
